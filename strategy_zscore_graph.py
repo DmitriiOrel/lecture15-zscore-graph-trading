@@ -17,7 +17,7 @@ import seaborn as sns
 from matplotlib import cm
 from matplotlib.colors import TwoSlopeNorm, to_hex
 
-from tinkoff.invest import CandleInterval, Client
+from tinkoff.invest import Client, CandleInterval
 from tinkoff.invest.schemas import InstrumentIdType
 from tinkoff.invest.utils import now
 

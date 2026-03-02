@@ -7,9 +7,10 @@ from uuid import uuid4
 
 import pandas as pd
 
-from tinkoff.invest import Client, OrderDirection, OrderType
+from tinkoff.invest import CandleInterval, Client, OrderDirection, OrderType
 from tinkoff.invest.exceptions import RequestError
 from tinkoff.invest.schemas import InstrumentIdType
+from tinkoff.invest.utils import now
 
 
 DEFAULT_APP_NAME = "PAIR-ZSCORE-GRAPH-CLI"

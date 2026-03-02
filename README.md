@@ -19,6 +19,15 @@ git clone https://github.com/DmitriiOrel/lecture15-zscore-graph-trading.git
 cd lecture15-zscore-graph-trading
 ```
 
+If `git pull` shows another repository or `unrelated histories`, do a clean re-clone:
+
+```powershell
+cd $HOME
+Remove-Item -Recurse -Force .\lecture15-zscore-graph-trading
+git clone https://github.com/DmitriiOrel/lecture15-zscore-graph-trading.git
+cd .\lecture15-zscore-graph-trading
+```
+
 ### Install (Windows PowerShell)
 
 ```powershell
