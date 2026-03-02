@@ -1,7 +1,9 @@
-﻿import argparse
+import argparse
 import json
+import math
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -55,8 +57,21 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--signal-date", default=None, help="Дата сигнала YYYY-MM-DD")
     p.add_argument("--z-score", type=float, default=None)
     p.add_argument("--entry-threshold", type=float, default=None)
+    p.add_argument("--hedge-beta", type=float, default=None, help="Явный beta для хеджа leg1 к leg2")
+    p.add_argument(
+        "--beta-lookback-days",
+        type=int,
+        default=180,
+        help="Глубина (дней) для оценки beta по дневным ценам, если beta не передан в JSON/CLI",
+    )
+    p.add_argument(
+        "--base-leg",
+        choices=["LEG1", "LEG2"],
+        default="LEG1",
+        help="Какая нога фиксируется параметром --buy-lots",
+    )
 
-    p.add_argument("--buy-lots", type=int, default=1, help="Количество лотов на каждую ногу пары")
+    p.add_argument("--buy-lots", type=int, default=1, help="Количество лотов для базовой ноги (--base-leg)")
     p.add_argument(
         "--allow-short",
         action="store_true",
@@ -157,12 +172,106 @@ def fetch_position_lots_by_figi(api: Client, account_id: str) -> dict[str, int]:
     return out
 
 
-def build_spread_orders(action: str, buy_lots: int) -> list[tuple[str, int]]:
-    if action == "BUY_SPREAD":
-        return [("BUY", int(buy_lots)), ("SELL", int(buy_lots))]
-    if action == "SELL_SPREAD":
-        return [("SELL", int(buy_lots)), ("BUY", int(buy_lots))]
-    return []
+def load_close_series_by_figi(api: Client, figi: str, days_back: int) -> pd.Series:
+    rows: list[dict] = []
+    for candle in api.get_all_candles(
+        figi=figi,
+        from_=now() - timedelta(days=int(days_back)),
+        interval=CandleInterval.CANDLE_INTERVAL_DAY,
+    ):
+        rows.append({"Date": candle.time, "Close": q_to_float(candle.close)})
+
+    if not rows:
+        return pd.Series(dtype=float)
+
+    df = pd.DataFrame(rows).sort_values("Date").drop_duplicates("Date")
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.set_index("Date")
+    if getattr(df.index, "tz", None) is not None:
+        df.index = df.index.tz_convert(None)
+    return df["Close"]
+
+
+def estimate_beta(api: Client, leg1_figi: str, leg2_figi: str, lookback_days: int) -> float:
+    s1 = load_close_series_by_figi(api=api, figi=leg1_figi, days_back=lookback_days)
+    s2 = load_close_series_by_figi(api=api, figi=leg2_figi, days_back=lookback_days)
+    if s1.empty or s2.empty:
+        return 1.0
+
+    joined = pd.concat([s1.rename("leg1"), s2.rename("leg2")], axis=1).dropna()
+    if len(joined) < 30:
+        return 1.0
+
+    x = joined["leg2"].astype(float).values
+    y = joined["leg1"].astype(float).values
+    var_x = float(pd.Series(x).var())
+    if not math.isfinite(var_x) or var_x <= 1e-12:
+        return 1.0
+
+    cov_xy = float(pd.Series(x).cov(pd.Series(y)))
+    beta = cov_xy / var_x
+    if not math.isfinite(beta):
+        return 1.0
+    return float(beta)
+
+
+def resolve_hedge_beta(inputs: dict, args: argparse.Namespace, api: Client, leg1_figi: str, leg2_figi: str) -> float:
+    if args.hedge_beta is not None and math.isfinite(args.hedge_beta):
+        return float(args.hedge_beta)
+
+    for key in ("hedge_beta", "beta", "hedge_ratio_beta"):
+        if key in inputs:
+            try:
+                value = float(inputs[key])
+                if math.isfinite(value):
+                    return value
+            except Exception:
+                pass
+
+    return estimate_beta(api=api, leg1_figi=leg1_figi, leg2_figi=leg2_figi, lookback_days=args.beta_lookback_days)
+
+
+def build_spread_orders(
+    action: str,
+    buy_lots: int,
+    hedge_beta: float,
+    leg1_lot_size: int,
+    leg2_lot_size: int,
+    base_leg: str,
+) -> list[tuple[str, int]]:
+    if action not in ("BUY_SPREAD", "SELL_SPREAD"):
+        return []
+
+    beta_abs = abs(float(hedge_beta))
+    eps = 1e-8
+
+    if base_leg == "LEG1":
+        leg1_lots = int(buy_lots)
+        leg1_shares = leg1_lots * max(int(leg1_lot_size), 1)
+        if beta_abs <= eps:
+            leg2_lots = 0
+        else:
+            leg2_target_shares = beta_abs * float(leg1_shares)
+            leg2_lots = int(math.ceil(leg2_target_shares / max(int(leg2_lot_size), 1)))
+    else:
+        leg2_lots = int(buy_lots)
+        leg2_shares = leg2_lots * max(int(leg2_lot_size), 1)
+        if beta_abs <= eps:
+            leg1_lots = 0
+        else:
+            leg1_target_shares = float(leg2_shares) / beta_abs
+            leg1_lots = int(math.ceil(leg1_target_shares / max(int(leg1_lot_size), 1)))
+
+    # Spread definition: S = leg1 - beta * leg2.
+    # BUY_SPREAD => +S exposure, SELL_SPREAD => -S exposure.
+    pos_sign = 1 if action == "BUY_SPREAD" else -1
+    leg1_exposure = float(pos_sign)
+    leg2_exposure = float(pos_sign) * (-float(hedge_beta))
+
+    leg1_side = "BUY" if leg1_exposure > 0 else "SELL"
+    leg2_side = "BUY" if leg2_exposure > 0 else "SELL"
+
+    return [(leg1_side, int(leg1_lots)), (leg2_side, int(leg2_lots))]
 
 
 def main() -> int:
@@ -226,6 +335,17 @@ def main() -> int:
 
         print("Leg1             :", leg1_ticker, "|", leg1.figi)
         print("Leg2             :", leg2_ticker, "|", leg2.figi)
+        print("Lot size         :", f"{leg1_ticker}={int(leg1.lot)}", f"{leg2_ticker}={int(leg2.lot)}")
+
+        hedge_beta = resolve_hedge_beta(
+            inputs=inputs,
+            args=args,
+            api=api,
+            leg1_figi=leg1.figi,
+            leg2_figi=leg2.figi,
+        )
+        print("Hedge beta       :", round(float(hedge_beta), 6))
+        print("Base leg         :", args.base_leg)
 
         lots_by_figi = fetch_position_lots_by_figi(api=api, account_id=account_id)
         leg1_lots = lots_by_figi.get(leg1.figi, 0)
@@ -234,15 +354,34 @@ def main() -> int:
         print("Current lots     :", f"{leg1_ticker}={leg1_lots}", f"{leg2_ticker}={leg2_lots}")
         print("Allow short      :", bool(args.allow_short))
 
-        legs = build_spread_orders(action=action, buy_lots=args.buy_lots)
+        legs = build_spread_orders(
+            action=action,
+            buy_lots=args.buy_lots,
+            hedge_beta=hedge_beta,
+            leg1_lot_size=int(leg1.lot),
+            leg2_lot_size=int(leg2.lot),
+            base_leg=args.base_leg,
+        )
         planned_orders: list[dict] = []
 
         if legs:
-            # leg order convention: first tuple for leg1, second tuple for leg2
             instruments = [
-                {"ticker": leg1_ticker, "figi": leg1.figi, "current_lots": leg1_lots, "side": legs[0][0], "qty": legs[0][1]},
-                {"ticker": leg2_ticker, "figi": leg2.figi, "current_lots": leg2_lots, "side": legs[1][0], "qty": legs[1][1]},
+                {
+                    "ticker": leg1_ticker,
+                    "figi": leg1.figi,
+                    "current_lots": leg1_lots,
+                    "side": legs[0][0],
+                    "qty": legs[0][1],
+                },
+                {
+                    "ticker": leg2_ticker,
+                    "figi": leg2.figi,
+                    "current_lots": leg2_lots,
+                    "side": legs[1][0],
+                    "qty": legs[1][1],
+                },
             ]
+            instruments = [x for x in instruments if int(x["qty"]) > 0]
 
             blocked_reasons: list[str] = []
             if not args.allow_short:
@@ -262,7 +401,8 @@ def main() -> int:
                 for reason in blocked_reasons:
                     print(" -", reason)
             else:
-                planned_orders = instruments
+                # Send SELL leg first to fail-fast on short constraints and avoid unhedged long.
+                planned_orders = sorted(instruments, key=lambda x: 0 if x["side"] == "SELL" else 1)
 
         print("Strategy decision:", action)
 
@@ -334,6 +474,8 @@ def main() -> int:
             "z_score": (float(z_score) if z_score is not None else None),
             "entry_threshold": (float(entry_threshold) if entry_threshold is not None else None),
             "buy_lots": int(args.buy_lots),
+            "base_leg": args.base_leg,
+            "hedge_beta": float(hedge_beta),
             "allow_short": bool(args.allow_short),
             "run_real_order": bool(args.run_real_order),
             "orders_sent": sent_orders,

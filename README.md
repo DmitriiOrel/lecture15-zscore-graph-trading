@@ -20,6 +20,8 @@
   - `BUY_SPREAD`, если `Z-Score <= -entry_threshold`;
   - `SELL_SPREAD`, если `Z-Score >= entry_threshold`;
   - `HOLD` иначе.
+- Исполнение ордеров делает beta-хедж: объем второй ноги считается по `hedge_beta`.
+- `hedge_beta` берется из JSON (`hedge_beta`/`beta`/`hedge_ratio_beta`), или передается через `--hedge-beta`, или оценивается автоматически по дневным ценам.
 - Для открытия спреда из нулевой позиции нужна short-нога, поэтому в раннере используется флаг `--allow-short`.
 
 ## 1) Клонирование репозитория
@@ -126,6 +128,12 @@ python run_trade_signal.py --run-real-order
 ```bash
 python run_trade_signal.py --run-real-order --allow-short --force-action BUY
 python run_trade_signal.py --run-real-order --allow-short --force-action SELL
+```
+
+Пример для сценария "фиксируем 10 акций GAZP и хеджим SBER по beta":
+
+```bash
+python run_trade_signal.py --run-real-order --allow-short --force-action BUY --base-leg LEG2 --buy-lots 1
 ```
 
 ### Если JSON лежит в нестандартной папке

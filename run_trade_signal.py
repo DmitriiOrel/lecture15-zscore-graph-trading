@@ -27,7 +27,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--account-id", default="", help="Real account id (optional)")
     p.add_argument("--run-real-order", action="store_true", help="Allow real order sending")
     p.add_argument("--force-action", choices=["BUY", "SELL"], default="", help="Force BUY/SELL for integration test")
-    p.add_argument("--buy-lots", type=int, default=None, help="Lots to buy on BUY signal/force buy")
+    p.add_argument("--buy-lots", type=int, default=None, help="Lots for base leg sizing")
+    p.add_argument("--hedge-beta", type=float, default=None, help="Explicit beta for hedge sizing")
+    p.add_argument("--beta-lookback-days", type=int, default=None, help="Lookback days for beta estimation")
+    p.add_argument("--base-leg", choices=["LEG1", "LEG2"], default="", help="Which leg is fixed by --buy-lots")
     p.add_argument(
         "--allow-short",
         action="store_true",
@@ -121,6 +124,12 @@ def main() -> int:
         cmd.extend(["--force-action", args.force_action])
     if args.buy_lots is not None:
         cmd.extend(["--buy-lots", str(args.buy_lots)])
+    if args.hedge_beta is not None:
+        cmd.extend(["--hedge-beta", str(args.hedge_beta)])
+    if args.beta_lookback_days is not None:
+        cmd.extend(["--beta-lookback-days", str(args.beta_lookback_days)])
+    if args.base_leg:
+        cmd.extend(["--base-leg", args.base_leg])
     if args.allow_short:
         cmd.append("--allow-short")
     if args.no_schedule_gate:
@@ -131,6 +140,8 @@ def main() -> int:
     print("Forecast JSON:", forecast_json)
     print("RunRealOrder :", bool(args.run_real_order))
     print("ForceAction  :", args.force_action or "(none)")
+    print("HedgeBeta    :", args.hedge_beta if args.hedge_beta is not None else "(auto)")
+    print("BaseLeg      :", args.base_leg or "(default)")
     print("AllowShort   :", bool(args.allow_short))
     if args.account_id:
         print("AccountId    :", args.account_id)
