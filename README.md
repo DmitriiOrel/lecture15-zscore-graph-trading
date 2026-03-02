@@ -73,6 +73,12 @@ Set token:
 $env:TINVEST_TOKEN = "YOUR_TOKEN"
 ```
 
+Check that forecast JSON exists in Downloads:
+
+```powershell
+Get-ChildItem $HOME\Downloads\latest_forecast_signal_*.json
+```
+
 Dry-run:
 
 ```bash
