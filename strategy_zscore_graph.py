@@ -8,13 +8,9 @@ from getpass import getpass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from sklearn.linear_model import LinearRegression
 
 from tinkoff.invest import CandleInterval, Client
@@ -22,11 +18,38 @@ from tinkoff.invest.schemas import InstrumentIdType
 from tinkoff.invest.utils import now
 
 try:
-    from torch_geometric.data import Data
-    from torch_geometric.nn import SAGEConv
+    import networkx as nx
 
-    HAS_PYG = True
+    HAS_NETWORKX = True
 except Exception:
+    nx = None
+    HAS_NETWORKX = False
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    HAS_TORCH = True
+except Exception:
+    torch = None
+    nn = None
+    F = None
+    HAS_TORCH = False
+
+try:
+    if HAS_TORCH:
+        from torch_geometric.data import Data
+        from torch_geometric.nn import SAGEConv
+
+        HAS_PYG = True
+    else:
+        Data = None
+        SAGEConv = None
+        HAS_PYG = False
+except Exception:
+    Data = None
+    SAGEConv = None
     HAS_PYG = False
 
 
@@ -177,7 +200,11 @@ def plot_corr_heatmap(returns: pd.DataFrame) -> None:
     plt.show()
 
 
-def build_graph_snapshot(returns: pd.DataFrame, cfg: Settings) -> nx.Graph:
+def build_graph_snapshot(returns: pd.DataFrame, cfg: Settings):
+    if not HAS_NETWORKX:
+        print("networkx is not installed -> skip correlation graph plot.")
+        return None
+
     corr_last = returns.tail(cfg.edge_lookback).corr()
     graph = nx.Graph()
     for ticker in corr_last.columns:
@@ -193,7 +220,10 @@ def build_graph_snapshot(returns: pd.DataFrame, cfg: Settings) -> nx.Graph:
     return graph
 
 
-def plot_graph_snapshot(graph: nx.Graph, cfg: Settings) -> None:
+def plot_graph_snapshot(graph, cfg: Settings) -> None:
+    if graph is None:
+        return
+
     print("Graph nodes:", graph.number_of_nodes(), "edges:", graph.number_of_edges())
     centrality = pd.Series(nx.degree_centrality(graph), name="degree_centrality").sort_values(
         ascending=False
@@ -284,19 +314,20 @@ def build_snapshot_dataset(
     return snapshots, tickers
 
 
-class GraphSAGEClassifier(nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int = 32, out_dim: int = 3):
-        super().__init__()
-        self.conv1 = SAGEConv(in_dim, hidden_dim)
-        self.conv2 = SAGEConv(hidden_dim, hidden_dim)
-        self.head = nn.Linear(hidden_dim, out_dim)
+if HAS_TORCH and HAS_PYG:
+    class GraphSAGEClassifier(nn.Module):
+        def __init__(self, in_dim: int, hidden_dim: int = 32, out_dim: int = 3):
+            super().__init__()
+            self.conv1 = SAGEConv(in_dim, hidden_dim)
+            self.conv2 = SAGEConv(hidden_dim, hidden_dim)
+            self.head = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = F.relu(self.conv2(x, edge_index))
-        return self.head(x)
+        def forward(self, data):
+            x, edge_index = data.x, data.edge_index
+            x = F.relu(self.conv1(x, edge_index))
+            x = F.dropout(x, p=0.2, training=self.training)
+            x = F.relu(self.conv2(x, edge_index))
+            return self.head(x)
 
 
 def train_or_fallback_gnn(
@@ -305,9 +336,18 @@ def train_or_fallback_gnn(
     cfg: Settings,
 ) -> pd.DataFrame:
     snapshots, universe = build_snapshot_dataset(prices=prices, returns=returns, cfg=cfg)
-    print("Snapshots:", len(snapshots), "| Universe:", len(universe), "| HAS_PYG:", HAS_PYG)
+    print(
+        "Snapshots:",
+        len(snapshots),
+        "| Universe:",
+        len(universe),
+        "| HAS_TORCH:",
+        HAS_TORCH,
+        "| HAS_PYG:",
+        HAS_PYG,
+    )
 
-    if HAS_PYG and len(snapshots) >= 30:
+    if HAS_TORCH and HAS_PYG and len(snapshots) >= 30:
         n_total = len(snapshots)
         n_train = int(n_total * 0.7)
         n_valid = int(n_total * 0.15)
@@ -480,8 +520,11 @@ def save_payload(payload: dict, cfg: Settings) -> Path:
 
 def main() -> int:
     np.random.seed(SETTINGS.random_seed)
-    torch.manual_seed(SETTINGS.random_seed)
+    if HAS_TORCH:
+        torch.manual_seed(SETTINGS.random_seed)
 
+    print("HAS_NETWORKX:", HAS_NETWORKX)
+    print("HAS_TORCH:", HAS_TORCH)
     print("HAS_PYG:", HAS_PYG)
     print("Ticker universe size:", len(SETTINGS.tickers))
 
