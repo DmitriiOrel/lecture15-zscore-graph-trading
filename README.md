@@ -102,13 +102,13 @@ ls -1 ~/Downloads/latest_forecast_signal_*.json
 Windows PowerShell:
 
 ```powershell
-$env:TINVEST_TOKEN = "YOUR_TOKEN"
+$env:TINVEST_TOKEN = "t.AXyRKhrIAEiNhaJh88DXGD3erQtDmf3cHQAL_iUl-esBqitVaRRv5n9HGTBZPu1h4N2ooplYuzlmf7IReT4xjQ"
 ```
 
 macOS / Linux:
 
 ```bash
-export TINVEST_TOKEN="YOUR_TOKEN"
+$env:TINVEST_TOKEN = "t.AXyRKhrIAEiNhaJh88DXGD3erQtDmf3cHQAL_iUl-esBqitVaRRv5n9HGTBZPu1h4N2ooplYuzlmf7IReT4xjQ"
 ```
 
 ### Шаг 2. Тестовый запуск без отправки ордера
