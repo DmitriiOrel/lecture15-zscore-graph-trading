@@ -26,6 +26,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+python -m pip install --no-deps git+https://github.com/RussianInvestments/invest-python.git@0.2.0-beta97
 ```
 
 ### Install (macOS / Linux)
@@ -35,6 +36,7 @@ python3 -m venv venv
 source venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+python -m pip install --no-deps git+https://github.com/RussianInvestments/invest-python.git@0.2.0-beta97
 chmod +x run_vtbr_trade_signal.sh run_auto_buy_first_affordable_lot1.sh
 ```
 
@@ -43,6 +45,8 @@ Check import:
 ```bash
 python -c "import tinkoff.invest; print('OK')"
 ```
+
+Important: install `invest-python` exactly with `--no-deps` as shown above.
 
 ## Colab workflow
 

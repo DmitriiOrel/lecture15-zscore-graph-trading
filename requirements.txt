@@ -13,4 +13,3 @@ deprecation
 protobuf<5
 grpcio>=1.59.3
 python-dateutil
-git+https://github.com/RussianInvestments/invest-python.git@0.2.0-beta97
