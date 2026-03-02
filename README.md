@@ -47,6 +47,7 @@ python -c "import tinkoff.invest; print('OK')"
 ```
 
 Important: install `invest-python` exactly with `--no-deps` as shown above.
+Do not run `python -m pip install git+https://github.com/RussianInvestments/invest-python.git@0.2.0-beta97` without `--no-deps`.
 
 ## Colab workflow
 
