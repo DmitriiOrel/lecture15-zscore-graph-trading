@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--hedge-beta", type=float, default=None, help="Explicit beta for hedge sizing")
     p.add_argument("--beta-lookback-days", type=int, default=None, help="Lookback days for beta estimation")
     p.add_argument("--base-leg", choices=["LEG1", "LEG2"], default="", help="Which leg is fixed by --buy-lots")
+    p.add_argument("--base-ticker", default="", help="Ticker fixed by --buy-lots (e.g. GAZP)")
     p.add_argument("--disable-kelly-sizing", action="store_true", help="Disable Kelly sizing from JSON")
     p.add_argument("--kelly-min-abs", type=float, default=None, help="Min absolute Kelly to open trade")
     p.add_argument("--kelly-max-mult", type=float, default=None, help="Max Kelly multiplier for lots")
@@ -133,6 +134,8 @@ def main() -> int:
         cmd.extend(["--beta-lookback-days", str(args.beta_lookback_days)])
     if args.base_leg:
         cmd.extend(["--base-leg", args.base_leg])
+    if args.base_ticker:
+        cmd.extend(["--base-ticker", args.base_ticker])
     if args.disable_kelly_sizing:
         cmd.append("--disable-kelly-sizing")
     if args.kelly_min_abs is not None:
@@ -151,6 +154,7 @@ def main() -> int:
     print("ForceAction  :", args.force_action or "(none)")
     print("HedgeBeta    :", args.hedge_beta if args.hedge_beta is not None else "(auto)")
     print("BaseLeg      :", args.base_leg or "(default)")
+    print("BaseTicker   :", args.base_ticker or "(none)")
     print("KellySizing  :", "disabled" if args.disable_kelly_sizing else "enabled")
     print("AllowShort   :", bool(args.allow_short))
     if args.account_id:

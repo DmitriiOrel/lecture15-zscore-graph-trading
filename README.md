@@ -135,7 +135,7 @@ python run_trade_signal.py --run-real-order --allow-short --force-action BUY --b
 Пример для сценария "фиксируем 10 акций GAZP и хеджим SBER по beta":
 
 ```bash
-python run_trade_signal.py --run-real-order --allow-short --force-action BUY --base-leg LEG2 --buy-lots 1
+python run_trade_signal.py --run-real-order --allow-short --force-action SELL --base-leg LEG2 --buy-lots 1
 ```
 
 ### Если JSON лежит в нестандартной папке
@@ -194,3 +194,20 @@ export TINVEST_TOKEN="YOUR_TOKEN"
 - `.venv/`
 - `logs/`
 - `reports/`
+
+## 10) Quick beta-hedge sizing example (SBER/GAZP)
+
+If your pair in JSON is:
+- `leg1_ticker = SBER`
+- `leg2_ticker = GAZP`
+
+and you want to fix `GAZP` volume (for example 1 lot of GAZP) and auto-calculate SBER by beta, run:
+
+```bash
+python run_trade_signal.py --run-real-order --allow-short --force-action SELL --buy-lots 1 --base-ticker GAZP
+```
+
+Notes:
+- `--base-ticker GAZP` means `--buy-lots` is applied to GAZP.
+- second leg size is computed automatically from `hedge_beta`.
+- if `hedge_beta` is not passed, it is estimated automatically from historical daily prices.

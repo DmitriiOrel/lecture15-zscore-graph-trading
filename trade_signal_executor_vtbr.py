@@ -71,6 +71,11 @@ def parse_args() -> argparse.Namespace:
         help="Какая нога фиксируется параметром --buy-lots",
     )
     p.add_argument(
+        "--base-ticker",
+        default="",
+        help="Ticker fixed by --buy-lots (e.g. GAZP). Overrides --base-leg.",
+    )
+    p.add_argument(
         "--disable-kelly-sizing",
         action="store_true",
         default=False,
@@ -322,6 +327,18 @@ def main() -> int:
     leg1_ticker = str(inputs.get("leg1_ticker", DEFAULT_LEG1_TICKER)).upper()
     leg2_ticker = str(inputs.get("leg2_ticker", DEFAULT_LEG2_TICKER)).upper()
 
+    effective_base_leg = args.base_leg
+    if args.base_ticker:
+        base_ticker = str(args.base_ticker).upper()
+        if base_ticker == leg1_ticker:
+            effective_base_leg = "LEG1"
+        elif base_ticker == leg2_ticker:
+            effective_base_leg = "LEG2"
+        else:
+            raise ValueError(
+                f"--base-ticker={base_ticker} is not in selected pair {leg1_ticker}/{leg2_ticker}"
+            )
+
     forced = normalize_action(args.force_action) if args.force_action else ""
     if forced:
         action = forced
@@ -392,7 +409,9 @@ def main() -> int:
             leg2_figi=leg2.figi,
         )
         print("Hedge beta       :", round(float(hedge_beta), 6))
-        print("Base leg         :", args.base_leg)
+        print("Base leg         :", effective_base_leg)
+        if args.base_ticker:
+            print("Base ticker      :", str(args.base_ticker).upper())
 
         lots_by_figi = fetch_position_lots_by_figi(api=api, account_id=account_id)
         leg1_lots = lots_by_figi.get(leg1.figi, 0)
@@ -407,11 +426,18 @@ def main() -> int:
             hedge_beta=hedge_beta,
             leg1_lot_size=int(leg1.lot),
             leg2_lot_size=int(leg2.lot),
-            base_leg=args.base_leg,
+            base_leg=effective_base_leg,
         )
         planned_orders: list[dict] = []
 
         if legs:
+            leg1_planned_lots = int(legs[0][1])
+            leg2_planned_lots = int(legs[1][1])
+            print(
+                "Planned hedge    :",
+                f"{leg1_ticker} {legs[0][0]} lots={leg1_planned_lots} shares={leg1_planned_lots * int(leg1.lot)};",
+                f"{leg2_ticker} {legs[1][0]} lots={leg2_planned_lots} shares={leg2_planned_lots * int(leg2.lot)}",
+            )
             instruments = [
                 {
                     "ticker": leg1_ticker,
@@ -522,7 +548,8 @@ def main() -> int:
             "entry_threshold": (float(entry_threshold) if entry_threshold is not None else None),
             "buy_lots": int(args.buy_lots),
             "effective_buy_lots": int(effective_buy_lots),
-            "base_leg": args.base_leg,
+            "base_leg": effective_base_leg,
+            "base_ticker": (str(args.base_ticker).upper() if args.base_ticker else None),
             "hedge_beta": float(hedge_beta),
             "kelly_abs": (float(kelly_abs) if kelly_abs is not None else None),
             "allow_short": bool(args.allow_short),
