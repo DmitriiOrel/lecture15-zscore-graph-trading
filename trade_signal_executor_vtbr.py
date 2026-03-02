@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--leg1-ticker", default=DEFAULT_LEG1_TICKER)
     p.add_argument("--leg2-ticker", default=DEFAULT_LEG2_TICKER)
 
-    p.add_argument("--signal", default="", help="Сигнал: LONG_SPREAD/SHORT_SPREAD/HOLD")
+    p.add_argument("--signal", default="", help="Сигнал: BUY_SPREAD/SELL_SPREAD/HOLD")
     p.add_argument("--action", default="", help="Действие: BUY_SPREAD/SELL_SPREAD/HOLD")
     p.add_argument("--signal-date", default=None, help="Дата сигнала YYYY-MM-DD")
     p.add_argument("--z-score", type=float, default=None)
