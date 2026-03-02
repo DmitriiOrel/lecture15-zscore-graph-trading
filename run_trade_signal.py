@@ -31,6 +31,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--hedge-beta", type=float, default=None, help="Explicit beta for hedge sizing")
     p.add_argument("--beta-lookback-days", type=int, default=None, help="Lookback days for beta estimation")
     p.add_argument("--base-leg", choices=["LEG1", "LEG2"], default="", help="Which leg is fixed by --buy-lots")
+    p.add_argument("--disable-kelly-sizing", action="store_true", help="Disable Kelly sizing from JSON")
+    p.add_argument("--kelly-min-abs", type=float, default=None, help="Min absolute Kelly to open trade")
+    p.add_argument("--kelly-max-mult", type=float, default=None, help="Max Kelly multiplier for lots")
     p.add_argument(
         "--allow-short",
         action="store_true",
@@ -130,6 +133,12 @@ def main() -> int:
         cmd.extend(["--beta-lookback-days", str(args.beta_lookback_days)])
     if args.base_leg:
         cmd.extend(["--base-leg", args.base_leg])
+    if args.disable_kelly_sizing:
+        cmd.append("--disable-kelly-sizing")
+    if args.kelly_min_abs is not None:
+        cmd.extend(["--kelly-min-abs", str(args.kelly_min_abs)])
+    if args.kelly_max_mult is not None:
+        cmd.extend(["--kelly-max-mult", str(args.kelly_max_mult)])
     if args.allow_short:
         cmd.append("--allow-short")
     if args.no_schedule_gate:
@@ -142,6 +151,7 @@ def main() -> int:
     print("ForceAction  :", args.force_action or "(none)")
     print("HedgeBeta    :", args.hedge_beta if args.hedge_beta is not None else "(auto)")
     print("BaseLeg      :", args.base_leg or "(default)")
+    print("KellySizing  :", "disabled" if args.disable_kelly_sizing else "enabled")
     print("AllowShort   :", bool(args.allow_short))
     if args.account_id:
         print("AccountId    :", args.account_id)

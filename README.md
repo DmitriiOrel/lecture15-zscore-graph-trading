@@ -128,6 +128,8 @@ python run_trade_signal.py --run-real-order
 ```bash
 python run_trade_signal.py --run-real-order --allow-short --force-action BUY
 python run_trade_signal.py --run-real-order --allow-short --force-action SELL
+# optional Kelly/beta overrides:
+python run_trade_signal.py --run-real-order --allow-short --force-action BUY --base-leg LEG2 --buy-lots 1 --hedge-beta 0.43 --kelly-min-abs 0.05 --kelly-max-mult 2.0
 ```
 
 Пример для сценария "фиксируем 10 акций GAZP и хеджим SBER по beta":

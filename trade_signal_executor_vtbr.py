@@ -70,6 +70,24 @@ def parse_args() -> argparse.Namespace:
         default="LEG1",
         help="Какая нога фиксируется параметром --buy-lots",
     )
+    p.add_argument(
+        "--disable-kelly-sizing",
+        action="store_true",
+        default=False,
+        help="Не использовать Kelly-масштабирование размера позиции из JSON",
+    )
+    p.add_argument(
+        "--kelly-min-abs",
+        type=float,
+        default=0.05,
+        help="Минимальный абсолют Kelly для открытия позиции",
+    )
+    p.add_argument(
+        "--kelly-max-mult",
+        type=float,
+        default=2.0,
+        help="Максимальный мультипликатор Kelly на базовые лоты",
+    )
 
     p.add_argument("--buy-lots", type=int, default=1, help="Количество лотов для базовой ноги (--base-leg)")
     p.add_argument(
@@ -231,6 +249,19 @@ def resolve_hedge_beta(inputs: dict, args: argparse.Namespace, api: Client, leg1
     return estimate_beta(api=api, leg1_figi=leg1_figi, leg2_figi=leg2_figi, lookback_days=args.beta_lookback_days)
 
 
+def resolve_kelly_abs(inputs: dict) -> float | None:
+    for key in ("kelly_position", "kelly_fractional", "kelly_fractional_raw", "position_size"):
+        if key not in inputs:
+            continue
+        try:
+            value = float(inputs[key])
+            if math.isfinite(value):
+                return abs(value)
+        except Exception:
+            continue
+    return None
+
+
 def build_spread_orders(
     action: str,
     buy_lots: int,
@@ -304,6 +335,22 @@ def main() -> int:
 
     z_score = inputs.get("current_z_score", None)
     entry_threshold = inputs.get("entry_threshold", None)
+    kelly_abs = resolve_kelly_abs(inputs)
+    effective_buy_lots = int(args.buy_lots)
+
+    if not args.disable_kelly_sizing and action in ("BUY_SPREAD", "SELL_SPREAD") and kelly_abs is not None:
+        kelly_abs = min(kelly_abs, float(args.kelly_max_mult))
+        print("Kelly abs        :", round(float(kelly_abs), 6))
+        if kelly_abs < float(args.kelly_min_abs):
+            print("Kelly abs ниже порога, позицию не открываем.")
+            action = "HOLD_BLOCKED_BY_KELLY"
+        else:
+            effective_buy_lots = max(1, int(math.ceil(float(args.buy_lots) * float(kelly_abs))))
+    elif action in ("BUY_SPREAD", "SELL_SPREAD"):
+        if args.disable_kelly_sizing:
+            print("Kelly sizing     : disabled")
+        else:
+            print("Kelly abs        : (not provided in JSON)")
 
     print("Signal date      :", signal_date.date())
     print("Pair             :", leg1_ticker, "/", leg2_ticker)
@@ -356,7 +403,7 @@ def main() -> int:
 
         legs = build_spread_orders(
             action=action,
-            buy_lots=args.buy_lots,
+            buy_lots=effective_buy_lots,
             hedge_beta=hedge_beta,
             leg1_lot_size=int(leg1.lot),
             leg2_lot_size=int(leg2.lot),
@@ -474,8 +521,10 @@ def main() -> int:
             "z_score": (float(z_score) if z_score is not None else None),
             "entry_threshold": (float(entry_threshold) if entry_threshold is not None else None),
             "buy_lots": int(args.buy_lots),
+            "effective_buy_lots": int(effective_buy_lots),
             "base_leg": args.base_leg,
             "hedge_beta": float(hedge_beta),
+            "kelly_abs": (float(kelly_abs) if kelly_abs is not None else None),
             "allow_short": bool(args.allow_short),
             "run_real_order": bool(args.run_real_order),
             "orders_sent": sent_orders,
