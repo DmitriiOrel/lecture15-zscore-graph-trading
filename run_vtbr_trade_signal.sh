@@ -14,6 +14,7 @@ TOKEN="${TINVEST_TOKEN:-}"
 RUN_REAL_ORDER=0
 NO_SCHEDULE_GATE=0
 FORCE_ACTION=""
+ALLOW_SHORT=0
 
 usage() {
   cat <<'EOF'
@@ -25,6 +26,7 @@ Options:
   --forecast-json PATH
   --python PATH
   --run-real-order
+  --allow-short
   --no-schedule-gate
   --force-action BUY|SELL
   -h, --help
@@ -38,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --forecast-json) FORECAST_JSON="$2"; shift 2 ;;
     --python) PYTHON_EXE="$2"; shift 2 ;;
     --run-real-order) RUN_REAL_ORDER=1; shift ;;
+    --allow-short) ALLOW_SHORT=1; shift ;;
     --no-schedule-gate) NO_SCHEDULE_GATE=1; shift ;;
     --force-action)
       FORCE_ACTION="${2^^}"
@@ -102,11 +105,16 @@ if [[ -n "$FORCE_ACTION" ]]; then
   ARGS+=("--force-action" "$FORCE_ACTION")
 fi
 
+if [[ $ALLOW_SHORT -eq 1 ]]; then
+  ARGS+=("--allow-short")
+fi
+
 echo "Python       : $PYTHON_EXE"
 echo "Trade script : $TRADE_SCRIPT"
 echo "Forecast JSON: $FORECAST_JSON"
 echo "RunRealOrder : $RUN_REAL_ORDER"
 echo "NoScheduleGate: $NO_SCHEDULE_GATE"
+echo "AllowShort   : $ALLOW_SHORT"
 echo "ForceAction  : ${FORCE_ACTION:-<none>}"
 echo "Log file     : $LOG_PATH"
 

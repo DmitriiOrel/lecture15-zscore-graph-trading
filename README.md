@@ -91,6 +91,13 @@ Force integration test:
 python run_trade_signal.py --run-real-order --force-action BUY
 ```
 
+For pair strategy from flat position you must allow short leg:
+
+```bash
+python run_trade_signal.py --run-real-order --allow-short --force-action BUY
+python run_trade_signal.py --run-real-order --allow-short --force-action SELL
+```
+
 ## Safety
 
 - Keep token only in environment variable `TINVEST_TOKEN`.

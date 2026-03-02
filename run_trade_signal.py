@@ -28,6 +28,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--run-real-order", action="store_true", help="Allow real order sending")
     p.add_argument("--force-action", choices=["BUY", "SELL"], default="", help="Force BUY/SELL for integration test")
     p.add_argument("--buy-lots", type=int, default=None, help="Lots to buy on BUY signal/force buy")
+    p.add_argument(
+        "--allow-short",
+        action="store_true",
+        help="Allow opening short leg for spread actions (required to open pair from flat)",
+    )
     p.add_argument("--no-schedule-gate", action="store_true", help="Disable horizon schedule gate")
     p.add_argument("--search-downloads-only", action="store_true", help="Search JSON only in Downloads")
     p.add_argument("--python-exe", default=sys.executable, help="Python executable to use")
@@ -116,6 +121,8 @@ def main() -> int:
         cmd.extend(["--force-action", args.force_action])
     if args.buy_lots is not None:
         cmd.extend(["--buy-lots", str(args.buy_lots)])
+    if args.allow_short:
+        cmd.append("--allow-short")
     if args.no_schedule_gate:
         cmd.append("--no-enforce-horizon-schedule")
 
@@ -124,6 +131,7 @@ def main() -> int:
     print("Forecast JSON:", forecast_json)
     print("RunRealOrder :", bool(args.run_real_order))
     print("ForceAction  :", args.force_action or "(none)")
+    print("AllowShort   :", bool(args.allow_short))
     if args.account_id:
         print("AccountId    :", args.account_id)
     else:

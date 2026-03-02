@@ -6,6 +6,7 @@
     [string]$ForecastJson = "C:\projects\lecture15-zscore-graph-trading\reports\zscore_pair_sber_aflt\latest_forecast_signal_pair_zscore.json",
     [switch]$RunRealOrder,
     [switch]$NoScheduleGate,
+    [switch]$AllowShort,
     [ValidateSet("", "BUY", "SELL")]
     [string]$ForceAction = ""
 )
@@ -62,6 +63,10 @@ if ($NoScheduleGate) {
     $args += "--no-enforce-horizon-schedule"
 }
 
+if ($AllowShort) {
+    $args += "--allow-short"
+}
+
 if (-not [string]::IsNullOrWhiteSpace($ForceAction)) {
     $args += @("--force-action", $ForceAction)
 }
@@ -71,6 +76,7 @@ Write-Host "Trade script :" $tradeScript
 Write-Host "Forecast JSON:" $ForecastJson
 Write-Host "RunRealOrder :" $RunRealOrder.IsPresent
 Write-Host "NoScheduleGate:" $NoScheduleGate.IsPresent
+Write-Host "AllowShort   :" $AllowShort.IsPresent
 Write-Host "ForceAction  :" $(if ($ForceAction) { $ForceAction } else { "<none>" })
 Write-Host "Log file     :" $logPath
 
